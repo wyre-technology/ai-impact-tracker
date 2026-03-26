@@ -10,9 +10,19 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 dev-debug.log
+
 # Dependency directories
 # Environment variables
 .env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+
 # Editor directories and files
 .idea
 .vscode
@@ -21,9 +31,21 @@ dev-debug.log
 *.njsproj
 *.sln
 *.sw?
+
 # OS specific
 .DS_Store
+Thumbs.db
+
+# Infrastructure
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Next.js
+.next/
+out/
 
 # Task files
 # tasks.json
-# tasks/ 
+# tasks/

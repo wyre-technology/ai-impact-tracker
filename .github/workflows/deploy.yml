@@ -1,0 +1,109 @@
+# ============================================================
+# WYRE AI Impact Tracker — CI/CD Pipeline
+# ============================================================
+# On push to main: build and push Docker images to ACR
+# On tag push (v*): deploy updated images to Azure Container Apps
+# ============================================================
+
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "Dockerfile*"
+      - ".github/workflows/deploy.yml"
+    tags: ["v*"]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ACR_NAME: acrwyreaiimpactprod
+  RESOURCE_GROUP: rg-wyre-ai-impact-prod
+  API_APP_NAME: impact-api
+  WEB_APP_NAME: impact-web
+
+jobs:
+  # ── Build & Push Docker Images ─────────────────────────────
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Set image tag
+        id: tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=sha-${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build & push impact-api
+        run: |
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/impact-api:${{ steps.tag.outputs.tag }} \
+                       -t ${{ env.ACR_NAME }}.azurecr.io/impact-api:latest \
+                       -f apps/api/Dockerfile .
+          docker push ${{ env.ACR_NAME }}.azurecr.io/impact-api --all-tags
+
+      - name: Build & push impact-web
+        run: |
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/impact-web:${{ steps.tag.outputs.tag }} \
+                       -t ${{ env.ACR_NAME }}.azurecr.io/impact-web:latest \
+                       -f apps/web/Dockerfile .
+          docker push ${{ env.ACR_NAME }}.azurecr.io/impact-web --all-tags
+
+  # ── Deploy to Azure Container Apps (tag push only) ─────────
+  deploy:
+    name: Deploy to ACA
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set image tag from git tag
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy impact-api
+        run: |
+          az containerapp update \
+            --name ${{ env.API_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.ACR_NAME }}.azurecr.io/impact-api:${{ steps.tag.outputs.tag }}
+
+      - name: Deploy impact-web
+        run: |
+          az containerapp update \
+            --name ${{ env.WEB_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.ACR_NAME }}.azurecr.io/impact-web:${{ steps.tag.outputs.tag }}
+
+      - name: Verify deployments
+        run: |
+          echo "Waiting for revisions to become active..."
+          sleep 15
+          az containerapp show --name ${{ env.API_APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.latestRevisionFqdn" -o tsv
+          az containerapp show --name ${{ env.WEB_APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.latestRevisionFqdn" -o tsv
