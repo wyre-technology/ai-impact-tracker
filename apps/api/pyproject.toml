@@ -1,0 +1,7 @@
+[project]
+name = "wyre-ai-impact-api"
+version = "1.0.0"
+description = "FastAPI backend for WYRE AI Impact Tracker"
+requires-python = ">=3.12"
+license = {text = "Apache-2.0"}
+authors = [{name = "WYRE Technology", email = "engineering@wyretechnology.com"}]
