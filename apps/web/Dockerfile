@@ -1,18 +1,13 @@
-# Stage 1: Dependencies
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --only=production
-
-# Stage 2: Build
+# Stage 1: Install all dependencies (including dev) for building
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+COPY package.json package-lock.json* ./
+RUN npm ci
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# Stage 3: Production
+# Stage 2: Production
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
