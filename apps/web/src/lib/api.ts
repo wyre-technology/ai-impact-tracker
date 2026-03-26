@@ -8,6 +8,14 @@ import type {
   Session,
   PaginatedResponse,
   DateRange,
+  AdminSessionCreate,
+  AdminSessionUpdate,
+  EngineerCreate,
+  EngineerUpdate,
+  ClientCreate,
+  ClientUpdate,
+  GlobalSettings,
+  ExportRequest,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -178,4 +186,104 @@ export async function fetchSessions(
     per_page: opts.perPage,
   });
   return fetcher<PaginatedResponse<Session>>(url);
+}
+
+// ---- Admin API ----
+
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new ApiError(`API error ${res.status}`, res.status, detail);
+  }
+  return res.json();
+}
+
+async function putJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new ApiError(`API error ${res.status}`, res.status, detail);
+  }
+  return res.json();
+}
+
+async function deleteReq(url: string): Promise<void> {
+  const res = await fetch(url, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new ApiError(`API error ${res.status}`, res.status, detail);
+  }
+}
+
+// Sessions
+export async function adminCreateSession(data: AdminSessionCreate): Promise<Session> {
+  return postJson<Session>(buildUrl("/api/v1/admin/sessions"), data);
+}
+
+export async function adminUpdateSession(id: string, data: AdminSessionUpdate): Promise<Session> {
+  return putJson<Session>(buildUrl(`/api/v1/admin/sessions/${id}`), data);
+}
+
+export async function adminDeleteSession(id: string): Promise<void> {
+  return deleteReq(buildUrl(`/api/v1/admin/sessions/${id}`));
+}
+
+// Engineers
+export async function adminCreateEngineer(data: EngineerCreate): Promise<Engineer> {
+  return postJson<Engineer>(buildUrl("/api/v1/admin/engineers"), data);
+}
+
+export async function adminUpdateEngineer(id: string, data: EngineerUpdate): Promise<Engineer> {
+  return putJson<Engineer>(buildUrl(`/api/v1/admin/engineers/${id}`), data);
+}
+
+// Clients
+export async function adminCreateClient(data: ClientCreate): Promise<Client> {
+  return postJson<Client>(buildUrl("/api/v1/admin/clients"), data);
+}
+
+export async function adminUpdateClient(id: string, data: ClientUpdate): Promise<Client> {
+  return putJson<Client>(buildUrl(`/api/v1/admin/clients/${id}`), data);
+}
+
+// Settings
+export function useAdminSettings() {
+  const url = buildUrl("/api/v1/admin/settings");
+  return useSWR<GlobalSettings>(url, fetcher, defaultConfig);
+}
+
+export async function fetchAdminSettings(): Promise<GlobalSettings> {
+  return fetcher<GlobalSettings>(buildUrl("/api/v1/admin/settings"));
+}
+
+export async function updateAdminSettings(data: { default_hourly_rate: number }): Promise<GlobalSettings> {
+  return putJson<GlobalSettings>(buildUrl("/api/v1/admin/settings"), data);
+}
+
+// CSV Export
+export async function adminExportCsv(data: ExportRequest): Promise<Blob> {
+  const res = await fetch(buildUrl("/api/v1/admin/export"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    throw new ApiError(`Export failed ${res.status}`, res.status);
+  }
+  return res.blob();
 }

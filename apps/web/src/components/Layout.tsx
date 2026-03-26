@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: GridIcon },
   { href: "/clients", label: "Clients", icon: UsersIcon },
   { href: "/engineers", label: "Engineers", icon: WrenchIcon },
+  { href: "/admin", label: "Admin", icon: ShieldIcon },
 ];
 
 interface LayoutProps {
@@ -126,6 +127,24 @@ function WrenchIcon({ active }: { active: boolean }) {
       strokeLinejoin="round"
     >
       <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+    </svg>
+  );
+}
+
+function ShieldIcon({ active }: { active: boolean }) {
+  const color = active ? "#598dff" : "currentColor";
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>
   );
 }

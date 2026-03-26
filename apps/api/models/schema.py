@@ -23,6 +23,7 @@ class Engineer(Base):
         Numeric(7, 2), nullable=False, default=225.00
     )
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -80,3 +81,13 @@ class Session(Base):
 
     engineer: Mapped["Engineer"] = relationship(back_populates="sessions")
     client: Mapped["Client | None"] = relationship(back_populates="sessions")
+
+
+class GlobalSettings(Base):
+    __tablename__ = "global_settings"
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )

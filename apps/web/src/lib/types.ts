@@ -65,6 +65,7 @@ export interface Engineer {
   email: string;
   default_hourly_rate: number;
   active: boolean;
+  is_admin: boolean;
   created_at: string;
 }
 
@@ -134,4 +135,75 @@ export type DateRangePreset = "1m" | "3m" | "6m" | "ytd" | "custom";
 export interface DateRange {
   start: string; // ISO8601
   end: string;   // ISO8601
+}
+
+// ---- Admin Types ----
+
+export interface AdminSessionCreate {
+  engineer_id: string;
+  client_id?: string | null;
+  project: string;
+  task_summary: string;
+  task_type: TaskType;
+  duration_minutes: number;
+  tool_calls?: Record<string, number>;
+  files_created?: number;
+  files_modified?: number;
+  lines_added?: number;
+  lines_removed?: number;
+  estimated_manual_hours: number;
+  hourly_rate?: number | null;
+  notes?: string | null;
+  created_at?: string | null;
+}
+
+export interface AdminSessionUpdate {
+  client_id?: string | null;
+  project?: string;
+  task_summary?: string;
+  task_type?: TaskType;
+  duration_minutes?: number;
+  estimated_manual_hours?: number;
+  hourly_rate?: number | null;
+  notes?: string | null;
+}
+
+export interface EngineerCreate {
+  entra_oid: string;
+  name: string;
+  email: string;
+  default_hourly_rate?: number;
+  is_admin?: boolean;
+}
+
+export interface EngineerUpdate {
+  name?: string;
+  email?: string;
+  default_hourly_rate?: number;
+  active?: boolean;
+  is_admin?: boolean;
+}
+
+export interface ClientCreate {
+  name: string;
+  slug: string;
+  monthly_mrr?: number | null;
+}
+
+export interface ClientUpdate {
+  name?: string;
+  slug?: string;
+  monthly_mrr?: number | null;
+  active?: boolean;
+}
+
+export interface GlobalSettings {
+  default_hourly_rate: number;
+}
+
+export interface ExportRequest {
+  start?: string;
+  end?: string;
+  client_id?: string;
+  engineer_id?: string;
 }
