@@ -229,3 +229,33 @@ class ExportRequest(BaseModel):
     end: datetime | None = None
     client_id: uuid.UUID | None = None
     engineer_id: uuid.UUID | None = None
+
+
+# ── API Keys ─────────────────────────────────────────────────────────
+
+
+class ApiKeyCreate(BaseModel):
+    engineer_id: uuid.UUID
+    name: str
+
+
+class ApiKeyOut(BaseModel):
+    """Returned when listing keys (no raw key)."""
+    id: uuid.UUID
+    engineer_id: uuid.UUID
+    name: str
+    key_prefix: str
+    active: bool
+    created_at: datetime
+    last_used_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class ApiKeyCreated(BaseModel):
+    """Returned on creation (includes the raw key shown only once)."""
+    id: uuid.UUID
+    key: str
+    name: str
+    key_prefix: str
+    created_at: datetime

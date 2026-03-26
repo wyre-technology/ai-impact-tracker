@@ -207,3 +207,28 @@ export interface ExportRequest {
   client_id?: string;
   engineer_id?: string;
 }
+
+// ---- API Keys ----
+
+export interface ApiKeyCreate {
+  engineer_id: string;
+  name: string;
+}
+
+export interface ApiKeyOut {
+  id: string;
+  engineer_id: string;
+  name: string;
+  key_prefix: string;
+  active: boolean;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+export interface ApiKeyCreated {
+  id: string;
+  key: string;
+  name: string;
+  key_prefix: string;
+  created_at: string;
+}

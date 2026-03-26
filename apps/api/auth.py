@@ -1,17 +1,33 @@
-"""Authentication middleware for Entra ID JWT validation.
+"""Authentication middleware for Entra ID JWT validation and API key auth.
 
-In dev mode (IMPACT_DEV_MODE=true), accepts an X-Dev-Engineer-OID header
-as a bypass for local development without Entra ID.
+Supports three auth methods (checked in order):
+1. API key: Bearer token starting with "wyre_ak_"
+2. Entra ID JWT: Any other Bearer token
+3. Dev mode: X-Dev-Engineer-OID header (when IMPACT_DEV_MODE=true)
 """
+
+import hashlib
 
 from fastapi import Depends, Header, HTTPException, Request
 from jose import JWTError, jwt
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import func
 import httpx
 
 from apps.api.config import settings
+from apps.api.db import get_session
+from apps.api.models.schema import ApiKey, Engineer
 
 # Cache for Entra ID JWKS keys
 _jwks_cache: dict | None = None
+
+API_KEY_PREFIX = "wyre_ak_"
+
+
+def _hash_api_key(raw_key: str) -> str:
+    """SHA-256 hash of a raw API key."""
+    return hashlib.sha256(raw_key.encode()).hexdigest()
 
 
 async def _get_jwks() -> dict:
@@ -31,14 +47,53 @@ async def _get_jwks() -> dict:
     return _jwks_cache
 
 
+async def _resolve_api_key(token: str, db: AsyncSession) -> str | None:
+    """If token is a wyre_ak_ API key, validate it and return the engineer's entra_oid.
+
+    Returns None if the token is not an API key (so caller falls through to JWT).
+    Raises HTTPException if the key is invalid or inactive.
+    """
+    if not token.startswith(API_KEY_PREFIX):
+        return None
+
+    key_hash = _hash_api_key(token)
+    result = await db.execute(
+        select(ApiKey).where(ApiKey.key_hash == key_hash)
+    )
+    api_key = result.scalar_one_or_none()
+
+    if api_key is None:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    if not api_key.active:
+        raise HTTPException(status_code=401, detail="API key has been revoked")
+
+    # Update last_used_at timestamp
+    await db.execute(
+        update(ApiKey)
+        .where(ApiKey.id == api_key.id)
+        .values(last_used_at=func.now())
+    )
+    await db.commit()
+
+    # Resolve engineer entra_oid
+    engineer = await db.get(Engineer, api_key.engineer_id)
+    if engineer is None:
+        raise HTTPException(status_code=401, detail="Engineer not found for API key")
+
+    return engineer.entra_oid
+
+
 async def get_current_engineer_oid(
     request: Request,
     x_dev_engineer_oid: str | None = Header(None),
+    db: AsyncSession = Depends(get_session),
 ) -> str:
     """Extract and validate the engineer's Entra OID from the request.
 
-    In dev mode, accepts X-Dev-Engineer-OID header directly.
-    In production, validates the Entra ID JWT bearer token.
+    Auth methods checked in order:
+    1. API key (Bearer wyre_ak_...)
+    2. Entra ID JWT (any other Bearer token)
+    3. Dev mode bypass (X-Dev-Engineer-OID header)
     """
     # Dev mode bypass
     if settings.dev_mode and x_dev_engineer_oid:
@@ -51,8 +106,13 @@ async def get_current_engineer_oid(
 
     token = auth_header.removeprefix("Bearer ")
 
+    # Try API key auth first
+    oid = await _resolve_api_key(token, db)
+    if oid is not None:
+        return oid
+
+    # Fall through to Entra JWT validation
     try:
-        # Get JWKS and decode token
         jwks = await _get_jwks()
         unverified_header = jwt.get_unverified_header(token)
 

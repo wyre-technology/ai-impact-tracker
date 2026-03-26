@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- API key authentication system (`wyre_ak_` prefixed keys) as alternative to Entra ID JWT
+- `api_keys` database table with SHA-256 hashed key storage
+- Admin endpoints for API key management: `POST/GET/DELETE /api/v1/admin/api-keys`
+- API Keys section on admin dashboard with create, list, copy-to-clipboard, and revoke
+- `WYRE_IMPACT_API_KEY` env var support in Claude Code stop hook
+- Alembic migration 003 for `api_keys` table
 - Admin-only API endpoints (`/api/v1/admin/*`) for session CRUD, engineer/client management, global settings, and CSV export
 - `is_admin` column on engineers table (default false) with admin role check dependency
 - `global_settings` table for storing configurable default hourly rate

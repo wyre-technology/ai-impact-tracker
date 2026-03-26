@@ -16,6 +16,9 @@ import type {
   ClientUpdate,
   GlobalSettings,
   ExportRequest,
+  ApiKeyCreate,
+  ApiKeyCreated,
+  ApiKeyOut,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -286,4 +289,18 @@ export async function adminExportCsv(data: ExportRequest): Promise<Blob> {
     throw new ApiError(`Export failed ${res.status}`, res.status);
   }
   return res.blob();
+}
+
+// API Keys
+export function useApiKeys() {
+  const url = buildUrl("/api/v1/admin/api-keys");
+  return useSWR<ApiKeyOut[]>(url, fetcher, defaultConfig);
+}
+
+export async function adminCreateApiKey(data: ApiKeyCreate): Promise<ApiKeyCreated> {
+  return postJson<ApiKeyCreated>(buildUrl("/api/v1/admin/api-keys"), data);
+}
+
+export async function adminRevokeApiKey(id: string): Promise<void> {
+  return deleteReq(buildUrl(`/api/v1/admin/api-keys/${id}`));
 }

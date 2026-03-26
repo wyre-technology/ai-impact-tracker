@@ -1,7 +1,9 @@
-"""Admin-only endpoints for session backfill, CRUD, settings, and CSV export."""
+"""Admin-only endpoints for session backfill, CRUD, settings, CSV export, and API keys."""
 
 import csv
+import hashlib
 import io
+import secrets
 import uuid
 from datetime import datetime
 
@@ -11,10 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.auth import get_current_engineer_oid
 from apps.api.db import get_session
-from apps.api.models.schema import Client, Engineer, GlobalSettings, Session
+from apps.api.models.schema import ApiKey, Client, Engineer, GlobalSettings, Session
 from apps.api.schemas import (
     AdminSessionCreate,
     AdminSessionUpdate,
+    ApiKeyCreate,
+    ApiKeyCreated,
+    ApiKeyOut,
     ClientCreate,
     ClientOut,
     ClientUpdate,
@@ -305,3 +310,71 @@ async def export_sessions_csv(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=sessions_export.csv"},
     )
+
+
+# ── API Keys ─────────────────────────────────────────────────────────
+
+API_KEY_PREFIX = "wyre_ak_"
+
+
+@router.post("/api-keys", status_code=201, response_model=ApiKeyCreated)
+async def create_api_key(
+    payload: ApiKeyCreate,
+    _admin: Engineer = Depends(require_admin),
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Create a new API key for an engineer. The raw key is returned only once."""
+    # Verify engineer exists
+    engineer = await db.get(Engineer, payload.engineer_id)
+    if engineer is None:
+        raise HTTPException(status_code=404, detail="Engineer not found")
+
+    # Generate the key
+    raw_key = f"{API_KEY_PREFIX}{secrets.token_hex(32)}"
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    key_prefix = raw_key[:12] + "..."
+
+    api_key = ApiKey(
+        engineer_id=payload.engineer_id,
+        name=payload.name,
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        active=True,
+    )
+    db.add(api_key)
+    await db.commit()
+    await db.refresh(api_key)
+
+    return {
+        "id": api_key.id,
+        "key": raw_key,
+        "name": api_key.name,
+        "key_prefix": key_prefix,
+        "created_at": api_key.created_at,
+    }
+
+
+@router.get("/api-keys", response_model=list[ApiKeyOut])
+async def list_api_keys(
+    _admin: Engineer = Depends(require_admin),
+    db: AsyncSession = Depends(get_session),
+) -> list[ApiKey]:
+    """List all API keys (prefix only, never the full key)."""
+    result = await db.execute(
+        select(ApiKey).order_by(ApiKey.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+@router.delete("/api-keys/{key_id}", status_code=204)
+async def revoke_api_key(
+    key_id: uuid.UUID,
+    _admin: Engineer = Depends(require_admin),
+    db: AsyncSession = Depends(get_session),
+) -> None:
+    """Revoke (deactivate) an API key."""
+    api_key = await db.get(ApiKey, key_id)
+    if api_key is None:
+        raise HTTPException(status_code=404, detail="API key not found")
+    api_key.active = False
+    await db.commit()

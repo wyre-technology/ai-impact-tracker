@@ -8,7 +8,8 @@ estimate, and POSTs the result to the Impact API.
 Environment variables:
     WYRE_ENGINEER_OID      - Engineer's Entra ID object ID (required)
     WYRE_IMPACT_API_URL    - Base URL of the Impact API (required)
-    WYRE_IMPACT_API_TOKEN  - Bearer token for the API (optional in dev)
+    WYRE_IMPACT_API_KEY    - API key (wyre_ak_...) for authentication (preferred)
+    WYRE_IMPACT_API_TOKEN  - Bearer token for the API (fallback, optional in dev)
     WYRE_SESSION_CLIENT    - Client slug for this project (optional)
 """
 
@@ -93,10 +94,13 @@ def post_session(payload: dict) -> None:
         return
 
     url = f"{api_url}/api/v1/sessions"
+    api_key = os.environ.get("WYRE_IMPACT_API_KEY", "")
     token = os.environ.get("WYRE_IMPACT_API_TOKEN", "")
 
     headers = {"Content-Type": "application/json"}
-    if token:
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    elif token:
         headers["Authorization"] = f"Bearer {token}"
     else:
         # Dev mode: pass OID as header
