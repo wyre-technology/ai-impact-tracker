@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.auth import get_current_engineer_oid
+from apps.api.auth import get_current_engineer_oid, get_optional_engineer_oid
 from apps.api.db import get_session
 from apps.api.models.schema import Client, Engineer, Session
 from apps.api.schemas import SessionCreate, SessionList, SessionOut
@@ -71,7 +71,7 @@ async def create_session(
 
 @router.get("", response_model=SessionList)
 async def list_sessions(
-    _engineer_oid: str = Depends(get_current_engineer_oid),
+    _engineer_oid: str | None = Depends(get_optional_engineer_oid),
     db: AsyncSession = Depends(get_session),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),

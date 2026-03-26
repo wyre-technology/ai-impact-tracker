@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.auth import get_current_engineer_oid
+from apps.api.auth import get_current_engineer_oid, get_optional_engineer_oid
 from apps.api.db import get_session
 from apps.api.models.schema import Client, Engineer, Session
 from apps.api.schemas import (
@@ -36,7 +36,7 @@ def _apply_filters(query, start, end, client_id, engineer_id):
 
 @router.get("/summary", response_model=MetricsSummary)
 async def metrics_summary(
-    _engineer_oid: str = Depends(get_current_engineer_oid),
+    _engineer_oid: str | None = Depends(get_optional_engineer_oid),
     db: AsyncSession = Depends(get_session),
     start: datetime | None = Query(None),
     end: datetime | None = Query(None),
@@ -132,7 +132,7 @@ async def metrics_summary(
 
 @router.get("/clients", response_model=list[ClientMetrics])
 async def metrics_by_client(
-    _engineer_oid: str = Depends(get_current_engineer_oid),
+    _engineer_oid: str | None = Depends(get_optional_engineer_oid),
     db: AsyncSession = Depends(get_session),
     start: datetime | None = Query(None),
     end: datetime | None = Query(None),
@@ -176,7 +176,7 @@ async def metrics_by_client(
 
 @router.get("/engineers", response_model=list[EngineerMetrics])
 async def metrics_by_engineer(
-    _engineer_oid: str = Depends(get_current_engineer_oid),
+    _engineer_oid: str | None = Depends(get_optional_engineer_oid),
     db: AsyncSession = Depends(get_session),
     start: datetime | None = Query(None),
     end: datetime | None = Query(None),

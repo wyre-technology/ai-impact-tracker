@@ -142,3 +142,18 @@ async def get_current_engineer_oid(
 
     except JWTError as exc:
         raise HTTPException(status_code=401, detail=f"Token validation failed: {exc}")
+
+
+async def get_optional_engineer_oid(
+    request: Request,
+    x_dev_engineer_oid: str | None = Header(None),
+    db: AsyncSession = Depends(get_session),
+) -> str | None:
+    """Like get_current_engineer_oid but returns None instead of 401.
+
+    Use for read-only endpoints that should work without auth (dashboard).
+    """
+    try:
+        return await get_current_engineer_oid(request, x_dev_engineer_oid, db)
+    except HTTPException:
+        return None
