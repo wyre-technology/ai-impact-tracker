@@ -159,7 +159,7 @@ export function TopClientsBar({
   barColor = "#3366ff",
 }: BarChartProps) {
   const sorted = [...data].sort(
-    (a, b) => (b as Record<string, number>)[dataKey] - (a as Record<string, number>)[dataKey],
+    (a, b) => (b as unknown as Record<string, number>)[dataKey] - (a as unknown as Record<string, number>)[dataKey],
   ).slice(0, 10);
 
   return (
