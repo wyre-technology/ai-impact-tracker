@@ -1,0 +1,160 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Monorepo Structure and Local Development Environment",
+        "description": "Initialize monorepo with apps/api, apps/web, hooks/claude-code, infra directories and docker-compose.yml for local development using PostgreSQL 15, FastAPI, and Next.js 14.",
+        "details": "Use pnpm@9.12.2 for monorepo management. Create docker-compose.yml with postgres:15-alpine, expose port 5432. Initialize apps/api with FastAPI 0.115.0, SQLAlchemy 2.0.35, Alembic 1.13.3. apps/web with Next.js 14.2.15, Tailwind CSS 3.4.10, Recharts 2.12.7, SWR 2.2.5, NextAuth 4.24.11. Set up .env files with DATABASE_URL=postgresql://postgres:password@localhost:5432/impact_tracker. Use Azure CLI for local auth testing with az login.",
+        "testStrategy": "Verify docker-compose up starts all services without errors. Test pnpm install succeeds. Confirm apps/api and apps/web serve on localhost:8000 and localhost:3000. Run alembic current to check DB connection.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Implement PostgreSQL Schema and Alembic Migrations",
+        "description": "Create database tables for sessions, engineers, clients exactly matching PRD SQL schema with UUID primary keys, TIMESTAMPTZ, JSONB fields, and foreign keys.",
+        "details": "Use Alembic for migrations. Define SQLAlchemy models in apps/api/models/schema.py matching PRD exactly: sessions (UUID id, engineer_id FK, client_id FK NULLABLE, task_type enum as TEXT CHECK constraint, etc.), engineers (entra_oid UNIQUE), clients (slug UNIQUE). Run alembic init migrations && alembic revision --autogenerate -m 'initial_schema'. Include indexes on created_at, engineer_id, client_id, task_type. Set search_path to public.",
+        "testStrategy": "Run alembic upgrade head. Insert test records via psql: verify FK constraints, JSONB validation, gen_random_uuid(), task_type CHECK passes all enum values. Query derived metrics formulas match PRD SQL.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Develop FastAPI Core with Entra ID Authentication",
+        "description": "Setup FastAPI app with Entra ID token validation middleware using MSAL and implement database session using SQLAlchemy.",
+        "details": "Install msal 1.30.0, python-jose[cryptography] 3.3.0. Implement auth middleware in apps/api/auth.py: validate bearer token against WYRE tenant using msal.ConfidentialClientApplication(client_id, authority=f'https://login.microsoftonline.com/{tenant_id}'). Use Depends(OAuth2PasswordBearer) for endpoints. db.py with engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=20). SessionLocal = sessionmaker(bind=engine).",
+        "testStrategy": "Test /health endpoint with valid az account get-access-token --resource https://graph.microsoft.com. Verify 401 without token. Test DB session with simple SELECT COUNT(*).",
+        "priority": "high",
+        "dependencies": [
+          1,
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "Implement POST /api/v1/sessions Endpoint",
+        "description": "Create session ingestion endpoint matching exact PRD request body schema with validation and database insertion.",
+        "details": "Pydantic model in apps/api/routers/sessions.py matching PRD JSON exactly (engineer_entra_oid: str, client_slug: Optional[str], task_type: Literal['iac','documentation',...], etc.). POST endpoint: resolve engineer by entra_oid, client by slug (or None), insert session record, return 201 with created session. Use async SQLAlchemy session.commit(). Add logging with structlog 24.4.0.",
+        "testStrategy": "POST curl with valid payload: verify 201 response contains UUID id, created_at recent. Query DB confirms record with correct FKs resolved. Test invalid task_type returns 422.",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Develop Claude Code Stop Hook Script",
+        "description": "Implement hooks/claude-code/stop_hook.py that collects session stats, prompts Claude API for summary/task_type/estimated_hours, and POSTs to /api/v1/sessions.",
+        "details": "Use anthropic 0.35.0 SDK. Read env vars WYRE_ENGINEER_OID, WYRE_SESSION_CLIENT, WYRE_IMPACT_API_URL. Collect duration/tool_calls/files_changed from Claude Code context (os.environ or stdin). Final Claude prompt exactly matching PRD template. Parse JSON response with pydantic. POST with requests 2.32.3 or httpx 0.27.2. Print confirmation to stdout. Make executable chmod +x.",
+        "testStrategy": "Set mock env vars, run python stop_hook.py --dry-run: verify JSON payload structure matches PRD. Test Claude API call returns valid JSON. Mock API POST succeeds.",
+        "priority": "high",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Implement Metrics API Endpoints",
+        "description": "Develop GET /api/v1/metrics/summary, /metrics/clients, /metrics/engineers with query params and PRD response formats using SQLAlchemy queries.",
+        "details": "Raw SQL queries matching PRD derived metrics: hours_saved = SUM(estimated_manual_hours) - SUM(duration_minutes/60), dollar_value = SUM(estimated_manual_hours * COALESCE(hourly_rate, 225)), leverage_ratio = SUM(estimated_manual_hours)/NULLIF(SUM(duration_minutes/60),0). Group by task_type, month. Support ?start=ISO&end=ISO&client_id&engineer_id filters. Paginated /sessions GET with filters.",
+        "testStrategy": "Seed 50 test sessions. Verify /metrics/summary returns exact PRD JSON structure with correct calculations. Test filters return subset. Performance <100ms for 6 months data.",
+        "priority": "medium",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Setup Next.js Frontend with NextAuth Entra ID",
+        "description": "Initialize Next.js 14 App Router with Tailwind, Recharts, SWR, NextAuth Entra ID provider for /dashboard, /clients, /engineers routes.",
+        "details": "next-auth@4.24.11 with AzureADProvider. app/layout.tsx with SessionProvider. Protected routes with middleware.ts checking session. Tailwind config, globals.css. Install @tanstack/react-query@5.59.0 for data fetching. Date range picker using date-fns 3.6.0, lucide-react 0.441.0 icons.",
+        "testStrategy": "Login flow: az login -> NextAuth redirects to Entra -> callback succeeds -> session shows user info. All pages 200 behind auth, 302 redirect unauth. Tailwind styles apply.",
+        "priority": "high",
+        "dependencies": [
+          1,
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Build Dashboard Aggregate View",
+        "description": "Implement /dashboard page with KPI cards, line chart hours saved over time, donut task type, bar top clients, recent sessions table using Recharts.",
+        "details": "Server Component fetch('/api/metrics/summary?start=${start}&end=${end}'). KPI cards: Total Sessions, Hours Saved, Dollar Value ($ {value.toLocaleString()}), AI Leverage Ratio. LineChart <Line type=\"monotone\" data={by_month} />. PieChart for task_type. Responsive BarChart top 10 clients. DataTable last 10 sessions with columns project,engineer,task_type,hours_saved.",
+        "testStrategy": "Load /dashboard logged in: verify KPIs match API response. Charts render with test data. Date picker changes URL params and refetches. Mobile responsive <768px.",
+        "priority": "medium",
+        "dependencies": [
+          6,
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Implement Client and Engineer Detail Views",
+        "description": "Build /clients, /clients/[slug], /engineers, /engineers/[id] pages with per-entity KPIs, charts, tables matching dashboard patterns.",
+        "details": "Dynamic routes app/clients/[slug]/page.tsx fetch(`/api/metrics/clients/${slug}`). Engineer views fetch(`/api/metrics/engineers/${id}`). Card grids for lists with mini-KPIs. Client-specific: engineer contributions bar chart. Engineer-specific: client distribution pie. Shared session history table with pagination.",
+        "testStrategy": "Navigate /clients: grid shows all active clients sorted by impact desc. Click chattstate -> per-client KPIs/charts match API. Engineer views similar. URL params persist date range.",
+        "priority": "medium",
+        "dependencies": [
+          6,
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Deploy Infrastructure with OpenTofu to Azure",
+        "description": "Provision Azure Container Apps environment, ACR, Key Vault, Container Apps for api/web/db, Entra ID app registration using OpenTofu matching PRD infra spec.",
+        "details": "OpenTofu 1.7.5 (Terraform-compatible). infra/main.tf: azurerm_resource_group, azurerm_container_registry, azurerm_container_app_environment, azurerm_postgresql_flexible_server v15, azurerm_container_app for impact-api (FastAPI Dockerfile), impact-web (Next.js Dockerfile), azurerm_key_vault + secrets. Variables: location=\"eastus2\", entra_tenant_id, entra_client_id, db_password. Outputs: api_url, web_url. CI/CD with GitHub Actions or Azure DevOps.",
+        "testStrategy": "tofu apply: verify all resources created. Access web_url -> login succeeds. POST to api_url/sessions succeeds. DB connection string from Key Vault works. Scale to 2 replicas.",
+        "priority": "high",
+        "dependencies": [
+          2,
+          4,
+          5,
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "Add Admin Features: Settings, Data Seeding, Exports",
+        "description": "Implement dollar value settings page (admin only), seed historical data script, PDF/CSV export for QBRs.",
+        "details": "Admin check: session.user.entra_oid in ADMIN_OIDS env list. PUT /api/engineers/:id hourly_rate. Seed script python -m apps.api.seed_data with 100 fake sessions. Export: server action fetch sessions -> jsPDF 2.5.1 or PapaParse 5.4.1 CSV download. Match PRD Phase 3.",
+        "testStrategy": "Admin updates engineer rate -> dollar_value recalculates. Seed script populates 6 months data. Download QBR.pdf shows client metrics. CSV parses correctly in Excel.",
+        "priority": "medium",
+        "dependencies": [
+          6,
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2026-03-26T02:02:37.239Z",
+      "updated": "2026-03-26T02:02:37.239Z",
+      "description": "Tasks for master context"
+    }
+  }
+}
