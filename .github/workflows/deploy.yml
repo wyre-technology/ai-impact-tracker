@@ -21,8 +21,8 @@ permissions:
   contents: read
 
 env:
-  ACR_NAME: acrwyreaiimpactprod
-  RESOURCE_GROUP: rg-wyre-ai-impact-prod
+  ACR_NAME: acrwyremspprod
+  RESOURCE_GROUP: rg-wyre-msp-platform-prod
   API_APP_NAME: impact-api
   WEB_APP_NAME: impact-web
 
